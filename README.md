@@ -1,10 +1,10 @@
 # News in one image: 24 November 2026
 
-[![news-image-20261124](https://make.fun/badge/news-image-20261124.svg)](https://make.fun/c/news-image-20261124)
-[![rank](https://make.fun/badge/news-image-20261124/ryu020195-crypto/news-image-20261124/rank.svg)](https://make.fun/c/news-image-20261124)
-[![reward](https://make.fun/badge/news-image-20261124/ryu020195-crypto/news-image-20261124/reward.svg)](https://make.fun/c/news-image-20261124)
+[![news-image-20261124](https://make.fun/badge/news-image-20261124.svg)](https://make.fun/bounty/news-image-20261124)
+[![rank](https://make.fun/badge/news-image-20261124/ryu020195-crypto/news-image-20261124/rank.svg)](https://make.fun/bounty/news-image-20261124)
+[![reward](https://make.fun/badge/news-image-20261124/ryu020195-crypto/news-image-20261124/reward.svg)](https://make.fun/bounty/news-image-20261124)
 
-An entry for the make.fun contest [news-image-20261124](https://make.fun/c/news-image-20261124), which asks for one image that sums up the world news of Tuesday 24 November 2026.
+An entry for the make.fun contest [news-image-20261124](https://make.fun/bounty/news-image-20261124), which asks for one image that sums up the world news of Tuesday 24 November 2026.
 
 `main.ts` draws the picture with nothing but Node 22's standard library: a hand-made 5×7 pixel font, filled polygons, rendering at 2× and then downsampling, and PNG encoding through `node:zlib`. Nothing in it is random, so every run writes the same bytes to `entry.png`: a 1024×1024 PNG of about 25 KB.
 
