@@ -59,6 +59,7 @@ const FONT: Record<string, string> = {
   '8': '0E11110E11110E', '9': '0E11110F01020C', ' ': '00000000000000', ':': '000C0C000C0C00', '-': '0000001F000000',
   ',': '000000000C0408', '.': '00000000000C0C', "'": '0C040800000000', '/': '01010204081010',
   '+': '0004041F040400', '%': '18190204081303', '!': '04040404040004',
+  '&': '0C12140815120D', '$': '040F140E051E04', ';': '000C0C000C0408',
 };
 const textW = (s: string, px: number) => (s.length * 6 - 1) * px;
 function text(s: string, x: number, y: number, px: number, c: RGB) {
@@ -77,119 +78,212 @@ function ctext(s: string, cx: number, y: number, px: number, maxW: number, c: RG
   text(s, cx - textW(s, p) / 2, y + ((px - p) * 7) / 2, p, c);
 }
 
+// Bold = the same glyphs drawn again one sub-pixel to the right.
+const btext = (s: string, x: number, y: number, px: number, c: RGB) => { text(s, x, y, px, c); text(s, x + 1 / SS, y, px, c); };
+// Greedy word wrap to a column of maxW pixels at glyph scale px.
+function wrap(s: string, px: number, maxW: number): string[] {
+  const max = Math.floor((maxW / px + 1) / 6), out: string[] = [];
+  let cur = '';
+  for (const w of s.split(' ')) {
+    if (cur && (cur + ' ' + w).length > max) { out.push(cur); cur = w; } else cur = cur ? cur + ' ' + w : w;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+
 // ---- palette
-const NAVY = hex('#14213d'), GOLD = hex('#fca311'), WHITE = hex('#ffffff'), PAPER = hex('#f3eee4'), INK = hex('#1b1b1b');
+const NAVY = hex('#14213d'), GOLD = hex('#fca311'), WHITE = hex('#ffffff'), PAPER = hex('#fbf8f1'), INK = hex('#111111');
+const SUB = hex('#33383c'), RULE = hex('#c9c2b2');
 const SEA = hex('#2f6f9f'), SEA2 = hex('#245a82'), RED = hex('#c0392b'), ORANGE = hex('#f39c12'), YELLOW = hex('#ffd84d');
-const GREY = hex('#7f8c8d'), DGREY = hex('#4a5459'), SMOKE = hex('#55585c'), GREEN = hex('#76b900'), SAND = hex('#e9c98a');
-const LEAF = hex('#2e8b57'), BEIGE = hex('#efe3c8'), CLOUD = hex('#8a949c'), BROWN = hex('#7a5230');
+const GREY = hex('#7f8c8d'), DGREY = hex('#4a5459'), SMOKE = hex('#55585c'), GREEN = hex('#3f8f00'), LGREEN = hex('#76b900');
+const SKY = hex('#0f1a33'), BLUE = hex('#1f5fbf'), TEAL = hex('#00838f'), BRICK = hex('#a04000'), PURPLE = hex('#6c3483');
 
-// ---- background and header
-rect(0, 0, W, H, hex('#d9d4c7'));
-rect(0, 0, W, 168, NAVY);
-ctext('WORLD NEWS IN ONE PICTURE', W / 2, 22, 4, 980, GOLD);
-ctext('TUESDAY 24 NOVEMBER 2026', W / 2, 76, 6, 980, WHITE);
-rect(0, 160, W, 8, GOLD);
+// ---- background and masthead
+rect(0, 0, W, H, hex('#e4ddd0'));
+rect(0, 0, W, 110, NAVY);
+ctext('THE WORLD ON ONE PAGE  -  31 STORIES REPORTED ON', W / 2, 12, 2, 1000, GOLD);
+ctext('TUESDAY 24 NOVEMBER 2026', W / 2, 38, 6.5, 1000, WHITE);
+rect(0, 104, W, 6, GOLD);
 
-// ---- six story tiles
-const TW = 490, TH = 268, MX = 16, GAP = 12, TOP = 182;
-type Story = { tag: string; lines: [string, string]; accent: RGB; icon: (cx: number, y0: number, x0: number) => void };
+// ---- lead stories with pictures: 3 x 2 tiles
+const LW = 328, LH = 200, LX = 12, LG = 8, LT = 118, PIC = 92;
+type Lead = { tag: string; head: string; sub: string; accent: RGB; art: (x0: number, y0: number, cx: number) => void };
+const sea = (x0: number, y: number, h: number) => { rect(x0, y, LW, h, SEA); for (let i = 0; i < 5; i++) rect(x0 + 18 + i * 64, y + 6 + (i % 2) * 8, 30, 3, SEA2); };
+function tanker(x: number, y: number, s: number) {
+  circle(x - 6 * s, y - 50 * s, 11 * s, SMOKE); circle(x + 10 * s, y - 60 * s, 12 * s, SMOKE); circle(x + 28 * s, y - 64 * s, 9 * s, SMOKE);
+  poly([[x - 50 * s, y], [x + 50 * s, y], [x + 40 * s, y + 18 * s], [x - 40 * s, y + 18 * s]], hex('#8e2a1e'));
+  rect(x + 22 * s, y - 16 * s, 18 * s, 16 * s, WHITE);
+  poly([[x - 32 * s, y], [x - 20 * s, y - 44 * s], [x - 10 * s, y - 20 * s], [x - 2 * s, y - 38 * s], [x + 10 * s, y]], ORANGE);
+  poly([[x - 24 * s, y], [x - 17 * s, y - 24 * s], [x - 9 * s, y - 10 * s], [x - 3 * s, y - 20 * s], [x + 3 * s, y]], YELLOW);
+}
+function drone(x: number, y: number, s: number, c: RGB) {
+  for (const [ax, ay] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { line(x, y, x + ax * 20 * s, y + ay * 12 * s, 4 * s, c); ellipse(x + ax * 20 * s, y + ay * 12 * s, 12 * s, 3.5 * s, c); }
+  ellipse(x, y, 11 * s, 7 * s, c);
+}
 
-const sea = (x0: number, y: number, h: number) => { rect(x0 + 12, y, TW - 24, h, SEA); for (let i = 0; i < 6; i++) rect(x0 + 30 + i * 75, y + 10 + (i % 2) * 14, 40, 4, SEA2); };
-
-const stories: Story[] = [
+const leads: Lead[] = [
   {
-    tag: 'STRAIT OF HORMUZ', lines: ['3 OIL TANKERS HIT', 'MINES, CATCH FIRE'], accent: RED,
-    icon: (cx, y0, x0) => {
-      sea(x0, y0 + 84, 50);
-      for (const dx of [-150, 0, 150]) {
-        const x = cx + dx, y = y0 + 80;
-        circle(x - 8, y - 62, 13, SMOKE); circle(x + 10, y - 72, 14, SMOKE); circle(x + 30, y - 78, 12, SMOKE); circle(x + 48, y - 80, 9, SMOKE);
-        poly([[x - 62, y], [x + 62, y], [x + 50, y + 24], [x - 50, y + 24]], hex('#8e2a1e'));
-        rect(x + 28, y - 20, 22, 20, WHITE);
-        poly([[x - 40, y], [x - 26, y - 56], [x - 14, y - 26], [x - 4, y - 48], [x + 12, y]], ORANGE);
-        poly([[x - 30, y], [x - 22, y - 30], [x - 12, y - 12], [x - 4, y - 26], [x + 4, y]], YELLOW);
-      }
+    tag: 'ASIA MARKETS', accent: GREEN,
+    head: 'TAIWAN STOCKS POST RECORD 8.99% JUMP AS HUANG RETURNS TO NVIDIA',
+    sub: 'TAIEX +3,310 PTS; TSMC LIMIT-UP; KOSPI +6.5%, NIKKEI UP',
+    art: (x0, y0) => {
+      rect(x0 + 20, y0 + 84, 180, 3, DGREY);
+      [30, 22, 26, 18, 70].forEach((h, i) => rect(x0 + 28 + i * 34, y0 + 84 - h, 24, h, i === 4 ? LGREEN : GREY));
+      const ax = x0 + 160; line(ax - 110, y0 + 60, ax, y0 + 14, 6, GREEN);
+      poly([[ax + 10, y0 + 6], [ax - 12, y0 + 6], [ax + 4, y0 + 28]], GREEN);
+      btext('+8.99%', x0 + 204, y0 + 24, 3, GREEN);
+      text('TAIEX', x0 + 220, y0 + 62, 2.5, INK);
     },
   },
   {
-    tag: 'UKRAINE WAR / LIBYA', lines: ['UKRAINE SAYS DRONES', 'SANK RUSSIAN WARSHIP'], accent: hex('#2c7be5'),
-    icon: (cx, y0, x0) => {
-      const sx = cx - 40, sy = y0 + 92;
-      poly(place([[-95, 0], [95, 0], [78, 26], [-82, 26]], sx, sy, 14), GREY);
-      poly(place([[-30, -30], [26, -30], [34, 0], [-36, 0]], sx, sy, 14), DGREY);
-      poly(place([[-6, -62], [0, -62], [0, -30], [-6, -30]], sx, sy, 14), DGREY);
-      poly(place([[40, -14], [80, -14], [80, 0], [40, 0]], sx, sy, 14), DGREY);
-      sea(x0, y0 + 98, 36);
-      for (const [dx, r] of [[-70, 9], [-50, 13], [30, 11], [55, 8]]) circle(sx + dx, y0 + 98, r, WHITE);
-      const dxc = cx + 140, dyc = y0 + 38; // quadcopter drone
-      for (const [ax, ay] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { line(dxc, dyc, dxc + ax * 30, dyc + ay * 18, 6, INK); ellipse(dxc + ax * 30, dyc + ay * 18, 18, 5, INK); }
-      ellipse(dxc, dyc, 16, 11, INK);
-      line(dxc - 20, dyc + 22, sx + 40, sy - 20, 3, ORANGE);
+    tag: 'STRAIT OF HORMUZ', accent: RED,
+    head: 'THREE TANKERS HIT MINES AND CATCH FIRE IN THE STRAIT OF HORMUZ',
+    sub: "AS ANNOUNCED BY IRAN'S REVOLUTIONARY GUARD NAVY",
+    art: (x0, y0, cx) => { sea(x0, y0 + 70, 22); for (const dx of [-100, 0, 100]) tanker(cx + dx, y0 + 68, 0.75); },
+  },
+  {
+    tag: 'CHINA', accent: hex('#b03a2e'),
+    head: 'POLITBURO MEMBER CHEN JINING PUT UNDER INVESTIGATION',
+    sub: 'SHANGHAI PARTY CHIEF; 4TH POLITBURO MEMBER PROBED SINCE 2025',
+    art: (x0, y0, cx) => {
+      const g = y0 + 88; rect(x0 + 10, g, LW - 20, 3, DGREY);
+      for (const [dx, w, h] of [[-120, 26, 40], [-90, 20, 56], [-30, 22, 46], [40, 24, 38], [96, 20, 30]]) rect(cx + dx, g - h, w, h, GREY);
+      poly([[cx - 64, g], [cx - 40, g], [cx - 46, g - 84], [cx - 56, g - 84]], DGREY); // Shanghai Tower
+      const px = cx + 10; rect(px - 2, g - 88, 4, 88, DGREY); circle(px, g - 24, 11, hex('#c0392b')); circle(px, g - 58, 8, hex('#c0392b'));
+      const mx = cx + 100, my = y0 + 34; circle(mx, my, 26, INK); circle(mx, my, 20, hex('#cfe3f2')); line(mx + 17, my + 17, mx + 40, my + 40, 9, INK);
     },
   },
   {
-    tag: 'TECH / MARKETS', lines: ['NVIDIA BRINGS BACK', 'JENSEN HUANG AS CEO'], accent: GREEN,
-    icon: (cx, y0) => {
-      const x = cx - 80, y = y0 + 64;
-      for (let i = -2; i <= 2; i++) { rect(x + i * 15 - 3, y - 64, 6, 128, DGREY); rect(x - 64, y + i * 15 - 3, 128, 6, DGREY); }
-      rect(x - 52, y - 52, 104, 104, INK);
-      rect(x - 40, y - 40, 80, 80, GREEN);
-      ctext('CEO', x, y - 10, 4, 76, INK);
-      const ax = cx + 90; // up arrow: shares rally
-      poly([[ax - 18, y0 + 120], [ax + 18, y0 + 120], [ax + 18, y0 + 50], [ax + 44, y0 + 50], [ax, y0 + 4], [ax - 44, y0 + 50], [ax - 18, y0 + 50]], GREEN);
-      ctext('STOCKS', ax + 2, y0 + 70, 2, 70, INK);
+    tag: 'UKRAINE WAR / NATO', accent: BLUE,
+    head: 'RUSSIAN STRIKE ON ZAPORIZHZHIA KILLS 2, INJURES 40+',
+    sub: 'INCLUDING CHILDREN. A RUSSIAN DRONE ENTERS POLAND; WARSAW HOLDS FIRE',
+    art: (x0, y0, cx) => {
+      const g = y0 + 88, bx = cx - 130; rect(x0 + 10, g, LW - 20, 3, DGREY);
+      poly([[bx, g], [bx, g - 70], [bx + 30, g - 82], [bx + 44, g - 64], [bx + 70, g - 76], [bx + 70, g]], GREY);
+      for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) rect(bx + 8 + c * 16, g - 56 + r * 14, 8, 8, (r + c) % 3 ? hex('#2b2f33') : YELLOW);
+      poly([[bx + 26, g - 70], [bx + 34, g - 92], [bx + 42, g - 74], [bx + 50, g - 88], [bx + 56, g - 66]], ORANGE);
+      for (let y = y0 + 6; y < g; y += 12) rect(cx + 60, y, 3, 7, RED); // border line
+      text('UA', cx + 26, y0 + 70, 2.5, BLUE); text('PL', cx + 76, y0 + 70, 2.5, RED);
+      drone(cx + 96, y0 + 30, 1, INK);
+      line(cx + 20, y0 + 40, cx + 70, y0 + 32, 2, ORANGE);
     },
   },
   {
-    tag: 'CLIMATE: COP31', lines: ['TALKS COLLAPSE OVER', 'FOSSIL FUELS LEFT OUT'], accent: hex('#16a085'),
-    icon: (cx, y0) => {
-      const gx = cx - 60, gy = y0 + 64;
-      circle(gx, gy, 60, SEA);
-      circle(gx - 22, gy - 18, 22, LEAF); circle(gx + 24, gy + 14, 18, LEAF); circle(gx - 6, gy + 34, 12, LEAF);
-      poly([[gx - 6, gy - 66], [gx + 10, gy - 30], [gx - 8, gy - 4], [gx + 12, gy + 26], [gx - 2, gy + 66], [gx - 12, gy + 66], [gx + 2, gy + 26], [gx - 18, gy - 4], [gx, gy - 30], [gx - 16, gy - 66]], RED);
-      const fx = cx + 110; // smokestack
-      rect(fx - 60, y0 + 92, 120, 36, DGREY);
-      rect(fx + 10, y0 + 30, 24, 64, DGREY);
-      circle(fx + 22, y0 + 18, 14, SMOKE); circle(fx + 40, y0 + 4, 12, SMOKE); circle(fx + 56, y0 - 6, 9, SMOKE);
+    tag: 'UKRAINE WAR / LIBYA', accent: hex('#2c7be5'),
+    head: 'UKRAINE SAYS ITS DRONES SANK A RUSSIAN WARSHIP OFF LIBYA',
+    sub: "KREMLIN WARNS KYIV OF 'PAINFUL CONSEQUENCES'",
+    art: (x0, y0, cx) => {
+      const sx = cx - 40, sy = y0 + 64;
+      poly(place([[-80, 0], [80, 0], [66, 22], [-70, 22]], sx, sy, 14), GREY);
+      poly(place([[-26, -26], [22, -26], [28, 0], [-30, 0]], sx, sy, 14), DGREY);
+      poly(place([[-5, -50], [0, -50], [0, -26], [-5, -26]], sx, sy, 14), DGREY);
+      sea(x0, y0 + 70, 22);
+      for (const [dx, r] of [[-60, 7], [-42, 10], [26, 9], [48, 6]]) circle(sx + dx, y0 + 70, r, WHITE);
+      drone(cx + 110, y0 + 24, 1, INK);
+      line(cx + 92, y0 + 40, sx + 40, sy - 16, 2, ORANGE);
     },
   },
   {
-    tag: 'GAZA', lines: ['RAIN FLOODS 70,000+', 'TENTS AS WINTER HITS'], accent: hex('#8e44ad'),
-    icon: (cx, y0, x0) => {
-      for (let i = 0; i < 7; i++) circle(cx - 180 + i * 60, y0 + 16 + (i % 2) * 6, 24, CLOUD);
-      for (let i = 0; i < 22; i++) { const x = x0 + 30 + i * 20, y = y0 + 34 + ((i * 7) % 5) * 6; line(x, y, x - 8, y + 26, 3, SEA); }
-      for (const dx of [-160, -70, 20, 110, 190]) {
-        const x = cx + dx, y = y0 + 112;
-        poly([[x - 40, y], [x, y - 52], [x + 40, y]], BEIGE);
-        poly([[x - 6, y], [x, y - 52], [x + 6, y]], hex('#b9a57c'));
-      }
-      sea(x0, y0 + 100, 34);
-    },
-  },
-  {
-    tag: 'PACIFIC', lines: ['SOLOMONS TO END', 'CHINA SECURITY PACT'], accent: hex('#d35400'),
-    icon: (cx, y0, x0) => {
-      sea(x0, y0 + 88, 46);
-      const ix = cx - 90, iy = y0 + 96;
-      ellipse(ix, iy, 90, 18, SAND);
-      line(ix, iy - 4, ix + 14, iy - 74, 9, BROWN);
-      for (const a of [-160, -120, -60, -20]) poly(place([[0, -5], [50, 0], [0, 5]], ix + 14, iy - 74, a), LEAF);
-      const lx = cx + 110, ly = y0 + 56; // broken chain link
-      for (const dx of [-38, 38]) { ellipse(lx + dx, ly, 32, 20, DGREY); ellipse(lx + dx, ly, 20, 9, PAPER); }
-      rect(lx - 6, ly - 30, 12, 60, PAPER);
-      line(lx - 18, ly + 34, lx + 18, ly - 34, 7, RED);
+    tag: 'SPACE', accent: PURPLE,
+    head: "CHINA'S SHENZHOU-24 LIFTS OFF WITH THE FIRST PAKISTANI ASTRONAUT",
+    sub: 'FIRST FOREIGN CREW MEMBER BOUND FOR TIANGONG STATION',
+    art: (x0, y0, cx) => {
+      rect(x0, y0, LW, PIC, SKY);
+      for (let i = 0; i < 26; i++) rect(x0 + ((i * 97) % (LW - 6)), y0 + ((i * 53) % (PIC - 6)), 2, 2, WHITE);
+      const rx = cx - 40;
+      poly([[rx - 9, y0 + 72], [rx - 9, y0 + 26], [rx, y0 + 8], [rx + 9, y0 + 26], [rx + 9, y0 + 72]], WHITE);
+      poly([[rx, y0 + 8], [rx - 9, y0 + 26], [rx + 9, y0 + 26]], RED);
+      poly([[rx - 9, y0 + 56], [rx - 18, y0 + 74], [rx - 9, y0 + 70]], GREY); poly([[rx + 9, y0 + 56], [rx + 18, y0 + 74], [rx + 9, y0 + 70]], GREY);
+      poly([[rx - 7, y0 + 72], [rx, y0 + 92], [rx + 7, y0 + 72]], ORANGE); poly([[rx - 4, y0 + 72], [rx, y0 + 84], [rx + 4, y0 + 72]], YELLOW);
+      const tx = cx + 80, ty = y0 + 36; // Tiangong: modules and solar panels
+      rect(tx - 24, ty - 6, 48, 12, GREY); rect(tx - 6, ty - 20, 12, 40, GREY);
+      rect(tx - 62, ty - 10, 34, 20, BLUE); rect(tx + 28, ty - 10, 34, 20, BLUE);
+      text('TIANGONG', tx - 47, ty + 30, 2, WHITE);
     },
   },
 ];
 
-stories.forEach((s, i) => {
-  const x0 = MX + (i % 2) * (TW + GAP), y0 = TOP + Math.floor(i / 2) * (TH + GAP);
-  rect(x0, y0, TW, TH, PAPER);
-  rect(x0, y0, 8, TH, s.accent);
-  s.icon(x0 + TW / 2, y0 + 12, x0);
-  ctext(s.tag, x0 + TW / 2, y0 + 158, 3, TW - 30, s.accent);
-  ctext(s.lines[0], x0 + TW / 2, y0 + 186, 4, TW - 24, INK);
-  ctext(s.lines[1], x0 + TW / 2, y0 + 224, 4, TW - 24, INK);
+leads.forEach((s, i) => {
+  const x0 = LX + (i % 3) * (LW + LG), y0 = LT + Math.floor(i / 3) * (LH + LG);
+  rect(x0, y0, LW, LH, PAPER);
+  s.art(x0, y0, x0 + LW / 2);
+  rect(x0, y0 + PIC, LW, 3, s.accent);
+  let y = y0 + PIC + 9;
+  btext(s.tag, x0 + 8, y, 1.5, s.accent); y += 15;
+  for (const l of wrap(s.head, 2, LW - 14)) { btext(l, x0 + 8, y, 2, INK); y += 18; }
+  for (const l of wrap(s.sub, 1.5, LW - 14)) { text(l, x0 + 8, y, 1.5, SUB); y += 13; }
+  if (y > y0 + LH) throw new Error('lead overflows: ' + s.tag);
+});
+
+// ---- the rest of the day, by region: headline + one-line summary
+type Brief = [string, string];
+type Section = { name: string; color: RGB; items: Brief[] };
+const columns: Section[][] = [
+  [{
+    name: 'ASIA-PACIFIC', color: RED, items: [
+      ['SOLOMON ISLANDS ENDS CHINA SECURITY PACT', "WON'T RENEW 2022 DEAL; NEW TREATY WITH AUSTRALIA"],
+      ['SOUTH KOREA SCRAMBLES JETS', 'RUSSIAN AIRCRAFT ENTER ITS AIR DEFENCE ZONE'],
+      ['N. KOREA THREATENS TO SHUT SWISS OFFICE', "OVER SWISS SANCTIONS ON A PYONGYANG CHILDREN'S CAMP"],
+      ['HASINA PLANS DEC 16 RETURN', "EX-BANGLADESH PM'S AIDE; MINISTER: 'IN HANDCUFFS'"],
+      ['JAPAN TO PAY ICC DUES EARLY', 'FULL 2027 CONTRIBUTION BY END OF 2026'],
+      ['MALAYSIA TO REPATRIATE 6,803', 'MYANMAR NATIONALS TO BE SENT BACK NEXT MONTH'],
+    ],
+  }],
+  [{
+    name: 'EUROPE', color: BLUE, items: [
+      ['EU PROPOSES 22ND RUSSIA SANCTIONS PACKAGE', 'BANKS, CRYPTO, SHADOW FLEET, REFINERIES, ATHLETES'],
+      ["HUNGARY'S MAGYAR MEETS ZELENSKYY", 'IN UKRAINE; RULES OUT SENDING WEAPONS OR TROOPS'],
+      ['UNICEF: 3 CHILDREN KILLED A DAY', 'BY RUSSIAN ATTACKS IN UKRAINE'],
+      ['LATVIA: WAR MAY REACH TIPPING POINT', 'PRESIDENT RINKEVICS SAYS IT COULD COME NEXT YEAR'],
+    ],
+  }, {
+    name: 'AFRICA', color: PURPLE, items: [
+      ['SUDAN: DRONES STRIKE KHARTOUM', 'MAIN AIRPORT AND A UN FACILITY HIT; AT LEAST 4 DEAD'],
+      ['AMNESTY: TIGRAY SHELLING PROBE', 'URGES WAR-CRIMES INQUIRY INTO ETHIOPIAN ATTACKS'],
+    ],
+  }],
+  [{
+    name: 'MIDDLE EAST', color: BRICK, items: [
+      ['GAZA: HAMAS SECURITY CHIEF KILLED', 'ISRAELI STRIKE KILLS NAEEM ABU NAHEL AND 6 OTHERS'],
+      ['GAZA: POLICE POST HIT, 3 DEAD', 'ISRAELI DRONE STRIKE IN KHAN YOUNIS DESPITE TRUCE'],
+      ['OXFAM: 99% OF GAZA CONTAMINATED', "REPORT ALLEGES 'ENVIRONMENTAL WAR CRIMES'"],
+      ['ISRAELI STRIKES IN SOUTH LEBANON', '1.2 MILLION UPROOTED BY THE VIOLENCE'],
+      ['ISRAEL DEPORTS POLISH LAWMAKER', 'HELD 14 HOURS AT AIRPORT BEFORE WEST BANK VISIT'],
+      ['YEMEN: HOUTHIS SAY 41 CIVILIANS KILLED', 'BLAME SAUDI AIR STRIKES IN A SINGLE DAY'],
+    ],
+  }],
+  [{
+    name: 'AMERICAS', color: TEAL, items: [
+      ['NVIDIA BRINGS BACK JENSEN HUANG AS CEO', 'SHARES +31.5% IN A DAY, A RECORD $952BN GAIN'],
+      ['TRUMP: CHINA MAY BUY 250 MORE BOEINGS', 'US PRESIDENT TELLS CNBC'],
+      ['HUCKABEE DOUBTS END OF ISRAEL AID', 'US ENVOY ON $3.8BN-A-YEAR MILITARY AID'],
+      ["MEXICO WON'T EXTRADITE CARTEL BOSS", "'EL CHAPO ISIDRO' TO BE TRIED AT HOME"],
+      ['GALAPAGOS FLOODS', 'ECUADOR EVACUATES ISLANDERS BY BOAT'],
+      ['WHO CHIEF VISITS CUBA', 'AS ISLAND HEALTH SYSTEM BREAKS DOWN'],
+      ['IOWA: ARMY TO DETONATE OLD MUNITIONS', 'COURT DENIES EMERGENCY STAY'],
+    ],
+  }],
+];
+
+const BT = LT + 2 * LH + LG + 8, CWD = 244, CG = 8, BOTTOM = H - 8;
+columns.forEach((col, i) => {
+  const x0 = LX + i * (CWD + CG);
+  rect(x0, BT, CWD, BOTTOM - BT, PAPER);
+  let y = BT;
+  for (const r of col) {
+    if (y > BT) y += 4;
+    rect(x0, y, CWD, 22, r.color);
+    btext(r.name, x0 + 8, y + 4, 2, WHITE);
+    y += 31;
+    r.items.forEach(([head, sub], k) => {
+      if (k) { rect(x0 + 8, y - 6, CWD - 16, 1, RULE); y += 2; }
+      for (const l of wrap(head, 1.5, CWD - 14)) { btext(l, x0 + 8, y, 1.5, INK); y += 13.5; }
+      y += 1.5;
+      for (const l of wrap(sub, 1.5, CWD - 14)) { text(l, x0 + 8, y, 1.5, SUB); y += 12.5; }
+      y += 8;
+    });
+  }
+  if (y > BOTTOM) throw new Error('column overflows: ' + col[0].name);
 });
 
 // ---- downsample and encode PNG (RGB, filter 0)
